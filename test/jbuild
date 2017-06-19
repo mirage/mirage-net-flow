@@ -2,7 +2,7 @@
 
 (executable
   ((name test)
-   (libraries (alcotest mirage-net-flow))))
+   (libraries (alcotest mirage-net-flow lwt.unix))))
 
 (alias
   ((name runtest)

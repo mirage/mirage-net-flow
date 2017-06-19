@@ -15,7 +15,12 @@
  * OR IN CONNECTION WITH THE USE OR PERFORMANCE OF THIS SOFTWARE.
  *)
 
-(** Implementation of the network interface using raw sockets. *)
+(** [Mirage_net_flow] transforms MirageOS flows into MirageOS network
+    interface. This is useful to start a network stack on top of any
+    existing flow.
+
+    {e Release %%VERSION%% - %%PKG_HOMEPAGE%% }
+ *)
 
 module Make (F: Mirage_flow_lwt.S): sig
 

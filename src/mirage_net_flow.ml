@@ -24,7 +24,7 @@ module Log = (val Logs.src_log src : Logs.LOG)
 let (>>=) = Lwt.(>>=)
 let (>|=) = Lwt.(>|=)
 
-module Make (F: Mirage_flow_lwt.S) = struct
+module Net (F: Mirage_flow_lwt.S) = struct
 
   type +'a io = 'a Lwt.t
 
@@ -143,5 +143,74 @@ module Make (F: Mirage_flow_lwt.S) = struct
     t.stats.rx_pkts  <- 0l;
     t.stats.tx_bytes <- 0L;
     t.stats.tx_pkts  <- 0l
+
+end
+
+module Flow (N: Mirage_net_lwt.S) = struct
+
+  type +'a io = 'a Lwt.t
+  type buffer = N.buffer
+
+  type flow = {
+    net: N.t;
+    buffers: Cstruct.t Queue.t;
+    cond: [`Data | `Eof] Lwt_condition.t;
+    mutable listen: unit Lwt.t option;
+  }
+
+  let connect net =
+    let buffers = Queue.create () in
+    let cond = Lwt_condition.create () in
+    let listen = None in
+    Lwt.return { net; buffers; cond; listen }
+
+  type error = N.error
+  let pp_error = N.pp_error
+
+  type write_error = [
+    | Mirage_flow.write_error
+    | `Net of N.error
+  ]
+
+  let pp_write_error ppf = function
+    | #Mirage_flow.write_error as e -> Mirage_flow.pp_write_error ppf e
+    | `Net e  -> N.pp_error ppf e
+
+  let write t buf =
+    N.write t.net buf >|= function Error e -> Error (`Net e) | Ok () -> Ok ()
+
+  let writev t bufs =
+    N.writev t.net bufs >|= function Error e -> Error (`Net e) | Ok () -> Ok ()
+
+  let close t =
+    (match t.listen with None -> () | Some t -> Lwt.cancel t);
+    N.disconnect t.net
+
+  let listen t = match t.listen with
+    | Some _ -> ()
+    | None   ->
+      let listen =
+        N.listen t.net (fun b ->
+            Queue.add b t.buffers;
+            Lwt_condition.signal t.cond `Data;
+            Lwt.return_unit
+          )
+      in
+      let th = listen >|= fun _ -> Lwt_condition.broadcast t.cond `Eof in
+      t.listen <- Some th
+
+  let rec dequeue t =
+    if Queue.is_empty t.buffers then
+      Lwt_condition.wait t.cond >>= function
+      | `Data -> dequeue t
+      | `Eof  -> Lwt.return `Eof
+    else
+      let buf = Queue.pop t.buffers in
+      Lwt.return (`Data buf)
+
+  let read t =
+    listen t;
+    dequeue t >|= fun b ->
+    Ok b
 
 end

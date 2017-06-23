@@ -15,19 +15,29 @@
  * OR IN CONNECTION WITH THE USE OR PERFORMANCE OF THIS SOFTWARE.
  *)
 
-(** [Mirage_net_flow] transforms MirageOS flows into MirageOS network
-    interface. This is useful to start a network stack on top of any
-    existing flow.
+(** [Mirage_net_flow] provides functors to convert between MirageOS
+    flows and MirageOS network interface. This is useful to start a
+    network stack on top of any existing flow. Or to open a flow on
+    top of an existing network interface.
 
     {e Release %%VERSION%% - %%PKG_HOMEPAGE%% }
- *)
+*)
 
-module Make (F: Mirage_flow_lwt.S): sig
+module Net (F: Mirage_flow_lwt.S): sig
 
   include Mirage_net_lwt.S
 
   val connect : ?mac:Macaddr.t -> F.flow -> t Lwt.t
   (** [connect ?mac f] connects to the given flow. If [mac] is not
       specified, generate a random one. *)
+
+end
+
+module Flow (N: Mirage_net_lwt.S): sig
+
+  include Mirage_flow_lwt.S
+
+  val connect: N.t -> flow Lwt.t
+  (** [connect n] is the flow connected to the network [n]. *)
 
 end
